@@ -58,7 +58,7 @@
     <div class="intro text-center">
       <h1>Olá, Seja Bem Vindo!</h1>
       <p class="lead">
-        Este site foi criado para que você possa denunciar problemas urbanos em Fortaleza-CE, como buracos nas ruas, falta de iluminação, falhas na coleta de lixo, degradação de espaços públicos e a ausência de manutenção e políticas públicas.
+        Este site foi criado para que você possa denunciar problemas urbanos em Fortaleza-CE, como buracos nas ruas, falta de iluminação, falhas na coleta de lixo, degradação de espaços públicos e a ausência de manutenções e ações políticas.
         Sua participação é essencial para melhorar a nossa cidade!
       </p>
     </div>
@@ -94,7 +94,7 @@
 
     <!-- Listagem de Denúncias Recentes -->
     <div class="row">
-      <h2 class="mb-3">Denúncias Recentes</h2>
+      <h2 class="mb-3 text-center">Denúncias Recentes</h2>
       <% if (denuncias.length === 0) { %>
         <p>Nenhuma denúncia encontrada.</p>
       <% } else { %>
@@ -107,7 +107,9 @@
               <p><%= denuncia.descricao %></p>
               <small class="text-muted">Enviado em: <%= denuncia.data.toLocaleString() %></small>
               <br>
-              <small class="text-muted">Status: <%= denuncia.resolvido ? 'Resolvido' : 'Não Resolvido' %></small>
+              <small class="<%= denuncia.resolvido ? 'text-success' : 'text-danger' %>">
+                Status: <%= denuncia.resolvido ? 'Resolvido' : 'Não Resolvido' %></small>
+              
               <!-- Botão para alterar status somente se a denúncia pertencer ao usuário logado -->
               <% if (userId && denuncia.usuario && denuncia.usuario._id.toString() === userId.toString()) { %>
                 <form action="/denuncia/<%= denuncia._id %>/status" method="POST" class="mt-2">

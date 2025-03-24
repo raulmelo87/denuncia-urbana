@@ -9,7 +9,7 @@ const app = express();
 
 // Configuração do express-session para gerenciar sessões de usuário
 app.use(session({
-    secret: 'seuSegredoAqui', // substitua por uma chave secreta forte
+    secret: 'seuSegredoAqui',
     resave: false,
     saveUninitialized: false
 }));
@@ -144,9 +144,14 @@ app.get('/', async (req, res) => {
 // Rota para submeter uma nova denúncia (somente usuários logados podem enviar)
 app.post('/denunciar', isAuthenticated, upload.single('imagem'), async (req, res) => {
     try {
+        // Verifica se ambos os campos foram enviados e se o arquivo possui conteúdo
+        if (!req.body.descricao || !req.file || req.file.size === 0) {
+            return res.status(400).send('Erro: Denúncia deve conter texto e imagem');
+        }
+
         const novaDenuncia = new Denuncia({
             descricao: req.body.descricao,
-            imagem: req.file ? req.file.filename : null,
+            imagem: req.file.filename,
             usuario: req.session.userId
         });
         await novaDenuncia.save();
