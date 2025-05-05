@@ -83,3 +83,95 @@ function isAdmin(req, res, next) {
         return res.status(403).send('Acesso negado: apenas administradores podem acessar essa rota');
     }
 }
+
+// ROTAS - AUTENTICAÇÃO   
+
+// Página de registro (GET)
+app.get('/register', (req, res) => {
+    res.render('register');
+});
+
+// Registro de usuário (POST)
+app.post('/register', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        // Criptografa a senha antes de salvar
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = new User({ username, password: hashedPassword });
+        await user.save();
+        res.redirect('/login');
+    } catch (err) {
+        res.status(500).send('Erro no registro: ' + err);
+    }
+});
+
+// Página de login (GET)
+app.get('/login', (req, res) => {
+    res.render('login');
+});
+
+// Login (POST)
+app.post('/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        if (!user) {
+            return res.redirect('/login?error=' + encodeURIComponent('Usuário não encontrado'));
+        }
+        const match = await bcrypt.compare(password, user.password);
+        if (match) {
+            req.session.userId = user._id;
+            req.session.username = user.username; // Armazena o nome do usuário na sessão
+            req.session.isAdmin = user.isAdmin;
+            res.redirect('/');
+        } else {
+            return res.redirect('/login?error=' + encodeURIComponent('Senha incorreta'));
+        }
+    } catch (err) {
+        res.status(500).send('Erro no login: ' + err);
+    }
+});
+
+// Logout
+app.get('/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/');
+});
+
+// ROTAS - DENÚNCIAS   
+
+// Página principal: exibe apenas as denúncias aprovadas, com filtro opcional
+app.get('/', async (req, res) => {
+    try {
+        let query = { aprovado: true };
+
+        if (req.query.q) {
+            query.descricao = { $regex: req.query.q, $options: 'i' };
+        }
+
+        const denuncias = await Denuncia.find(query).sort({ data: -1 }).populate('usuario');
+        const message = req.session.message || null;
+        req.session.message = null;
+
+        res.render('index', { 
+            denuncias, 
+            userId: req.session.userId, 
+            username: req.session.username, // Passa o nome do usuário para a view
+            isAdmin: req.session.isAdmin || false,
+            message,
+            search: req.query.q || ''
+        });
+    } catch (err) {
+        res.status(500).send('Erro ao buscar denúncias');
+    }
+});
+
+// Configuração do Nodemailer para conta Gmail
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'raul.kmkz87@gmail.com', // Conta que transmite o e-mail
+        pass: 'nbrzbhxpozrcaqrc' // Senha de aplicativo (sem espaços)
+    }
+});
+
