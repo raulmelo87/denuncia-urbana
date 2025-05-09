@@ -175,3 +175,108 @@ const transporter = nodemailer.createTransport({
     }
 });
 
+// Rota para submeter uma nova denúncia (somente usuários logados podem enviar)
+// A denúncia é salva com "aprovado: false", aguardando avaliação do administrador
+app.post('/denunciar', isAuthenticated, upload.single('imagem'), async (req, res) => {
+    try {
+        // Verifica se a descrição e a imagem foram enviadas, e se o arquivo possui conteúdo
+        if (!req.body.descricao || !req.file || req.file.size === 0) {
+            return res.status(400).send('Erro: Denúncia deve conter texto e imagem');
+        }
+
+        const novaDenuncia = new Denuncia({
+            descricao: req.body.descricao,
+            imagem: req.file.filename,
+            usuario: req.session.userId,
+            aprovado: false
+        });
+
+        await novaDenuncia.save();
+
+        // Envio do e-mail de notificação para o administrador
+        const mailOptions = {
+            from: 'raul.kmkz87@gmail.com', // Conta remetente
+            to: 'fraulbmelo@gmail.com',   // Conta do administrador
+            subject: 'Nova Denúncia Recebida',
+            text: `Uma nova denúncia foi publicada.\n\nDescrição: ${req.body.descricao}`
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error('Erro ao enviar e-mail:', error);
+            } else {
+                console.log('E-mail enviado:', info.response);
+            }
+        });
+
+        // Define uma mensagem de sucesso na sessão para informar o usuário
+        req.session.message = 'Sua denúncia foi enviada para avaliação do administrador e em breve poderá ser publicada.';
+        res.redirect('/');
+        
+    } catch (err) {
+        console.error('Erro ao salvar a denúncia:', err);
+        res.status(500).send('Erro ao salvar a denúncia');
+    }
+});
+
+// Rota para atualizar o status da denúncia (somente o autor pode alterar o status)
+app.post('/denuncia/:id/status', isAuthenticated, async (req, res) => {
+    try {
+        const denuncia = await Denuncia.findById(req.params.id);
+        if (!denuncia) {
+            return res.status(404).send('Denúncia não encontrada');
+        }
+        // Verifica se o usuário logado é o criador da denúncia
+        if (denuncia.usuario.toString() !== req.session.userId.toString()) {
+            return res.status(403).send('Você não tem permissão para alterar esta denúncia');
+        }
+        const { status } = req.body; // "true" ou "false" (em formato string)
+        denuncia.resolvido = status === 'true';
+        await denuncia.save();
+        res.redirect('/');
+    } catch (err) {
+        res.status(500).send('Erro ao atualizar status');
+    }
+});
+
+// ROTAS - ADMINISTRAÇÃO   
+
+// Rota para exibir denúncias pendentes (apenas para administradores)
+app.get('/admin', isAdmin, async (req, res) => {
+    try {
+        const pendingDenuncias = await Denuncia.find({ aprovado: false }).populate('usuario');
+        res.render('admin', { pendingDenuncias });
+    } catch (err) {
+        res.status(500).send('Erro ao buscar denúncias pendentes');
+    }
+});
+
+// Rota para aprovar uma denúncia (apenas para administradores)
+app.post('/denuncia/:id/aprovar', isAdmin, async (req, res) => {
+    try {
+        const denuncia = await Denuncia.findById(req.params.id);
+        if (!denuncia) {
+            return res.status(404).send('Denúncia não encontrada');
+        }
+        denuncia.aprovado = true;
+        await denuncia.save();
+        res.redirect('/admin');
+    } catch (err) {
+        res.status(500).send('Erro ao aprovar a denúncia');
+    }
+});
+
+// Rota para deletar uma denúncia (apenas para administradores)
+app.post('/denuncia/:id/delete', isAdmin, async (req, res) => {
+    try {
+      await Denuncia.findByIdAndDelete(req.params.id);
+      res.redirect('/admin');
+    } catch (err) {
+      res.status(500).send('Erro ao deletar a denúncia');
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
